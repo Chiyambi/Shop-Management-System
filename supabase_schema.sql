@@ -583,7 +583,7 @@ BEGIN
         -- When a new credit is recorded (Money/Goods leaving the shop)
         IF (TG_OP = 'INSERT') THEN
             INSERT INTO expenses (shop_id, category, amount, description, created_by)
-            VALUES (NEW.shop_id, 'Customer Credit Given', NEW.amount_owed, 'Automated: Credit given to customer ID ' || NEW.customer_id, NEW.created_by);
+            VALUES (NEW.shop_id, 'Customer Credit Given', NEW.amount_owed, 'Automated: Credit given to customer ID ' || UPPER(SUBSTRING(NEW.customer_id::text FROM 1 FOR 6)), NEW.created_by);
         
         -- When credit is marked as settled (Money coming back to the shop)
         ELSIF (TG_OP = 'UPDATE' AND OLD.is_settled = FALSE AND NEW.is_settled = TRUE) THEN

@@ -264,7 +264,11 @@ const Login = () => {
       <div className="card" style={{ width: '100%', maxWidth: '440px', padding: '24px' }}>
         <div style={{ textAlign: 'center', marginBottom: '16px' }}>
           <div style={{ marginBottom: '4px' }}>
-            <img src={managerLogo} alt="Shop Manager Log In" style={{ width: '56px', height: '56px', objectFit: 'contain' }} />
+            <img
+              src={managerLogo}
+              alt="Shop Manager Log In"
+              className="login-logo"
+            />
           </div>
           <h2 style={{ fontSize: '24px', margin: '0 0 4px 0', lineHeight: '1.2' }}>
             {isResetPasswordMode ? 'Create New Password' : (isForgotPassword ? 'Reset Password' : (isSignUp ? 'Create Account' : (isStaffLogin ? 'Staff Login' : 'Owner Login')))}
