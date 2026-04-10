@@ -380,7 +380,7 @@ const Products = () => {
             disabled={!currentShop || currentShop.id === 'all' || !canModifyCurrentShop}
           >
             <Plus size={20} />
-            <span>Add Product</span>
+            <span>{!currentShop || currentShop.id === 'all' ? 'Select Branch to Add' : 'Add Product'}</span>
           </button>
         </div>
       </div>
@@ -511,7 +511,7 @@ const Products = () => {
       </div>
 
       {showModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000 }}>
           <div className="card" style={{ width: '100%', maxWidth: '600px', maxHeight: '95vh', overflowY: 'auto' }}>
             <form onSubmit={handleSaveProduct}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
@@ -528,12 +528,12 @@ const Products = () => {
                     onChange={(e) => setFormData({...formData, barcode: e.target.value})}
                     onKeyDown={(e) => e.key === 'Enter' && handleBarcodeLookup(formData.barcode)}
                     placeholder="Scan or enter barcode"
-                    style={{ flex: 1, padding: '12px', borderRadius: '8px', border: '1px solid var(--border)', outline: 'none' }}
+                    style={{ flex: 1, minWidth: 0, padding: '12px', borderRadius: '8px', border: '1px solid var(--border)', outline: 'none' }}
                   />
                   <button 
                     type="button" 
                     className="btn" 
-                    style={{ background: 'var(--primary)', color: 'white', border: 'none' }} 
+                    style={{ background: 'var(--primary)', color: 'white', border: 'none', flexShrink: 0, padding: '0 16px', display: 'flex', alignItems: 'center', justifyContent: 'center' }} 
                     onClick={startScanner}
                   >
                     <ScanLine size={20} />
@@ -631,7 +631,7 @@ const Products = () => {
       )}
 
       {showAdjustmentModal && adjustingProduct && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '16px' }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000, padding: '16px' }}>
           <div className="card" style={{ width: '100%', maxWidth: '440px' }}>
             <form onSubmit={handleSaveAdjustment}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>

@@ -260,16 +260,16 @@ const Login = () => {
   }
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-main)', padding: '20px' }}>
-      <div className="card" style={{ width: '100%', maxWidth: '440px', padding: '40px' }}>
-        <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-          <div style={{ marginBottom: '16px' }}>
-            <img src={managerLogo} alt="Shop Manager Log In" style={{ width: '80px', height: '80px', objectFit: 'contain' }} />
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-main)', padding: '16px' }}>
+      <div className="card" style={{ width: '100%', maxWidth: '440px', padding: '24px' }}>
+        <div style={{ textAlign: 'center', marginBottom: '16px' }}>
+          <div style={{ marginBottom: '4px' }}>
+            <img src={managerLogo} alt="Shop Manager Log In" style={{ width: '56px', height: '56px', objectFit: 'contain' }} />
           </div>
-          <h2 style={{ fontSize: '28px' }}>
+          <h2 style={{ fontSize: '24px', margin: '0 0 4px 0', lineHeight: '1.2' }}>
             {isResetPasswordMode ? 'Create New Password' : (isForgotPassword ? 'Reset Password' : (isSignUp ? 'Create Account' : (isStaffLogin ? 'Staff Login' : 'Owner Login')))}
           </h2>
-          <p style={{ color: 'var(--text-muted)' }}>
+          <p style={{ color: 'var(--text-muted)', margin: '0', fontSize: '13px', lineHeight: '1.4' }}>
             {isResetPasswordMode
               ? 'Enter your new password below to finish resetting your account'
               : (isForgotPassword 
@@ -280,7 +280,7 @@ const Login = () => {
 
         {/* Role Toggle */}
         {!isSignUp && !isForgotPassword && (
-          <div style={{ display: 'flex', background: 'var(--surface-muted)', padding: '4px', borderRadius: '8px', marginBottom: '24px' }}>
+          <div style={{ display: 'flex', background: 'var(--surface-muted)', padding: '4px', borderRadius: '8px', marginBottom: '20px' }}>
             <button 
               onClick={() => setIsStaffLogin(false)}
               style={{ flex: 1, padding: '8px', border: 'none', borderRadius: '6px', cursor: 'pointer', background: !isStaffLogin ? 'var(--surface-elevated)' : 'transparent', color: 'var(--text-main)', fontWeight: !isStaffLogin ? '600' : '500', boxShadow: !isStaffLogin ? '0 2px 4px rgba(0,0,0,0.05)' : 'none' }}
@@ -472,7 +472,7 @@ const Login = () => {
               </>
             )}
 
-            <div style={{ marginBottom: '24px' }}>
+            <div style={{ marginBottom: '20px' }}>
               <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '8px' }}>Password</label>
               <div style={{ position: 'relative' }}>
                 <Lock style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} size={18} />
@@ -488,7 +488,7 @@ const Login = () => {
             </div>
 
             {!isSignUp && !isStaffLogin && (
-              <div style={{ textAlign: 'right', marginBottom: '20px' }}>
+              <div style={{ textAlign: 'right', marginBottom: '16px' }}>
                 <button 
                   type="button" 
                   onClick={() => setIsForgotPassword(true)}
@@ -511,7 +511,7 @@ const Login = () => {
 
         {/* Google Sign-In Button (moved below form) */}
         {!isStaffLogin && !isForgotPassword && !isResetPasswordMode && (
-          <div style={{ marginTop: '24px' }}>
+          <div style={{ marginTop: '20px' }}>
             <div style={{ textAlign: 'center', marginBottom: '16px', color: 'var(--text-muted)', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '10px' }}>
               <div style={{ flex: 1, height: '1px', background: 'var(--border)' }}></div>
               <span>or</span>
@@ -547,7 +547,7 @@ const Login = () => {
           </div>
         )}
 
-        <div style={{ marginTop: '24px', textAlign: 'center' }}>
+        <div style={{ marginTop: '20px', textAlign: 'center' }}>
           {!isStaffLogin && !isForgotPassword && (
             <p style={{ fontSize: '14px', color: 'var(--text-muted)' }}>
               {isSignUp ? 'Already have an account?' : 'Need to grow your business?'} 

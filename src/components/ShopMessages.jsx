@@ -151,6 +151,7 @@ const ShopMessages = () => {
     <>
       {/* Floating Button */}
       <button
+        className="chat-toggle-btn"
         onClick={() => setIsOpen(!isOpen)}
         style={{
           position: 'fixed',
@@ -197,7 +198,9 @@ const ShopMessages = () => {
 
       {/* Chat Panel */}
       {isOpen && (
-        <div style={{
+        <div 
+         className="chat-popup"
+         style={{
           position: 'fixed',
           bottom: '90px',
           right: '24px',
