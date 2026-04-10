@@ -171,30 +171,45 @@ const Layout = () => {
                 <Menu size={28} />
               </button>
               <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <h2 style={{ fontSize: '24px' }}>{currentShop?.name || 'Loading Shop...'}</h2>
+                <div className="mobile-stack" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                  <h2 style={{ fontSize: '20px', margin: 0, fontWeight: '700' }}>{currentShop?.name || 'Loading Shop...'}</h2>
                   {userProfile?.role === 'Owner' && shops.length > 1 && (
-                    <select 
-                      value={currentShop?.id} 
-                      onChange={(e) => {
-                        if (e.target.value === 'all') {
-                          setCurrentShop({ id: 'all', name: 'Global Dashboard', location: 'All Shops Consolidated' })
-                        } else {
-                          setCurrentShop(shops.find(s => s.id === e.target.value))
-                        }
-                      }}
-                      style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid var(--border)', outline: 'none', cursor: 'pointer' }}
-                    >
-                      <option value="all">Global (All Shops)</option>
-                      {shops.map(shop => (
-                        <option key={shop.id} value={shop.id}>{shop.name}</option>
-                      ))}
-                    </select>
+                    <div style={{ position: 'relative' }}>
+                      <select 
+                        value={currentShop?.id} 
+                        onChange={(e) => {
+                          if (e.target.value === 'all') {
+                            setCurrentShop({ id: 'all', name: 'Global Dashboard', location: 'All Shops Consolidated' })
+                          } else {
+                            setCurrentShop(shops.find(s => s.id === e.target.value))
+                          }
+                        }}
+                        style={{ 
+                          appearance: 'none', 
+                          background: 'var(--primary)', 
+                          color: 'white', 
+                          padding: '6px 28px 6px 14px', 
+                          borderRadius: '20px', 
+                          border: 'none', 
+                          fontSize: '12px', 
+                          fontWeight: '600', 
+                          cursor: 'pointer', 
+                          outline: 'none',
+                          boxShadow: '0 2px 6px rgba(0,0,0,0.1)'
+                        }}
+                      >
+                        <option value="all">🌐 Global (All Shops)</option>
+                        {shops.map(shop => (
+                          <option key={shop.id} value={shop.id}>📍 {shop.name}</option>
+                        ))}
+                      </select>
+                      <div style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'white', fontSize: '10px' }}>▼</div>
+                    </div>
                   )}
                 </div>
-                <p style={{ color: 'var(--text-muted)' }}>{currentShop?.location || 'Malawi'}</p>
+                <p style={{ color: 'var(--text-muted)', margin: 0, fontSize: '13px' }}>{currentShop?.location || 'Malawi'}</p>
                 {currentShop?.id && currentShop.id !== 'all' && (
-                  <p style={{ color: currentShopAccess.canModify ? 'var(--success)' : 'var(--danger)', fontSize: '12px' }}>
+                  <p style={{ color: currentShopAccess.canModify ? 'var(--success)' : 'var(--danger)', fontSize: '11px', margin: '2px 0 0' }}>
                     {currentShopAccess.statusLabel}
                   </p>
                 )}

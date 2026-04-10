@@ -381,8 +381,8 @@ const Dashboard = () => {
 
   return (
     <div className="fade-in">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', gap: '16px', flexWrap: 'wrap' }}>
-        <h1 style={{ fontSize: '28px' }}>Business Overview</h1>
+      <div className="dashboard-header-stack" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', gap: '16px', flexWrap: 'wrap' }}>
+        <h1 style={{ fontSize: '28px', margin: 0 }}>Business Overview</h1>
         
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
           {syncMessage && (

@@ -402,6 +402,13 @@ select option {
 }
 
 @media (max-width: 768px) {
+  .dashboard-header-stack {
+    display: flex !important;
+    flex-direction: column-reverse !important;
+    align-items: flex-start !important;
+    gap: 8px !important;
+  }
+
   .chat-popup {
     bottom: 80px !important;
     right: 10px !important;
