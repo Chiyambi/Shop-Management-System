@@ -406,7 +406,7 @@ DROP POLICY IF EXISTS "Expenses insert access" ON expenses;
 DROP POLICY IF EXISTS "Expenses update access" ON expenses;
 DROP POLICY IF EXISTS "Expenses delete access" ON expenses;
 CREATE POLICY "Expenses read access" ON expenses FOR SELECT USING (shop_id IN (SELECT get_user_shop_access()));
-CREATE POLICY "Expenses insert access" ON expenses FOR INSERT WITH CHECK (shop_id IN (SELECT get_user_shop_access()) AND check_is_shop_member(shop_id));
+CREATE POLICY "Expenses insert access" ON expenses FOR INSERT WITH CHECK (shop_id IN (SELECT get_user_shop_access()));
 CREATE POLICY "Expenses update access" ON expenses FOR UPDATE USING (shop_id IN (SELECT get_user_shop_access()) AND can_manage_shop(shop_id)) WITH CHECK (shop_id IN (SELECT get_user_shop_access()) AND can_manage_shop(shop_id));
 CREATE POLICY "Expenses delete access" ON expenses FOR DELETE USING (shop_id IN (SELECT get_user_shop_access()) AND can_manage_shop(shop_id));
 
