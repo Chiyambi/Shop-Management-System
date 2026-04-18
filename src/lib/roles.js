@@ -53,7 +53,7 @@ export const isManagementRole = (role) => MANAGEMENT_ROLES.has(role)
  * If a role is not listed, they see an "Access Denied" screen.
  */
 export const ROUTE_ROLES = {
-  'dashboard':    [ROLES.OWNER, ROLES.MANAGER],
+  'dashboard':    [ROLES.OWNER, ROLES.MANAGER, ROLES.CASHIER],
   'inventory':    [ROLES.OWNER, ROLES.MANAGER, ROLES.CASHIER],
   'sales':        [ROLES.OWNER, ROLES.MANAGER, ROLES.CASHIER],
   'purchases':    [ROLES.OWNER, ROLES.MANAGER],
@@ -90,8 +90,7 @@ export const canAccessRoute = (role, routePath) => {
  * @returns {string}
  */
 export const getDefaultRoute = (role) => {
-  if (role === ROLES.OWNER || role === ROLES.MANAGER) return '/dashboard'
-  return '/sales'
+  return '/dashboard'
 }
 
 // ─────────────────────────────────────────────────────────────

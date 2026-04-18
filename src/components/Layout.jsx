@@ -25,6 +25,7 @@ import { supabase } from '../lib/supabaseClient'
 import ErrorBoundary from './ErrorBoundary'
 
 import { useShop } from '../context/ShopContext'
+import { confirmAction } from '../lib/dialogs'
 import managerLogo from '../assets/manager.png'
 import ShopMessages from './ShopMessages'
 
@@ -32,7 +33,11 @@ const Layout = () => {
   const navigate = useNavigate()
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(false)
   const [isNotificationsOpen, setIsNotificationsOpen] = React.useState(false)
-  const { shops, currentShop, setCurrentShop, userProfile, lowStockItems, dueSalaries, currentShopAccess, successMessage } = useShop()
+  const { 
+    shops, currentShop, setCurrentShop, userProfile, 
+    lowStockItems, dueSalaries, currentShopAccess, 
+    successMessage, logout 
+  } = useShop()
   const avatarUrl = userProfile?.avatar_url
   const avatarFallback = (userProfile?.full_name || 'AD').substring(0, 2).toUpperCase()
 
@@ -42,14 +47,14 @@ const Layout = () => {
 
   const handleLogout = async () => {
     try {
-      await supabase.auth.signOut()
+      const confirmed = await confirmAction('Are you sure you want to log out of the system?')
+      if (!confirmed) return
+      
+      await logout()
+      // Fallback navigation in case ProtectedRoute doesn't trigger immediately
+      navigate('/login', { replace: true })
     } catch (e) {
       console.error('Logout error:', e)
-    } finally {
-      // Small delay ensures state is cleared before navigation
-      setTimeout(() => {
-        navigate('/login', { replace: true })
-      }, 100)
     }
   }
 

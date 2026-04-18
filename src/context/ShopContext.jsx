@@ -157,9 +157,12 @@ export const ShopProvider = ({ children }) => {
           hasInitialFetchStarted.current = true
         }
       } else if (event === 'SIGNED_OUT') {
-        // ── Close active session on logout ────────────────────
+        // ── Fallback cleanup for SIGNED_OUT ──────────────────
+        // This is a safety catch for when signOut is called directly
+        // or token expires. Note: closeSession might fail here due to RLS
+        // if user is already signed out.
         if (activeSessionRef.current) {
-          await closeSession(activeSessionRef.current.id)
+          closeSession(activeSessionRef.current.id).catch(() => {})
           setActiveSession(null)
           activeSessionRef.current = null
         }
@@ -169,7 +172,7 @@ export const ShopProvider = ({ children }) => {
         setClosureMap({})
         setLoading(false)
         setInitialLoading(false)
-        hasInitialFetchStarted.current = false // Reset on logout
+        hasInitialFetchStarted.current = false 
       }
     })
 
@@ -358,6 +361,53 @@ export const ShopProvider = ({ children }) => {
   const shopAccessMessage = currentShopAccess.reason
   const formatCurrency = (value, options) => formatCurrencyValue(value, currencyPreference, options)
 
+  const logout = async () => {
+    try {
+      // Immediate UI response: stop any loading and clear profile
+      setLoading(false)
+      setInitialLoading(false)
+
+      // 1. Log the LOGOUT audit event (while still authenticated)
+      if (userProfile && currentShop?.id && currentShop.id !== 'all') {
+        try {
+          await _logAuditEvent({
+            shopId:     currentShop.id,
+            actionType:  'LOGOUT',
+            profile:     userProfile,
+            sessionId:   activeSessionRef.current?.id || null,
+            description: `${userProfile.full_name || 'Employee'} logged out`,
+          })
+        } catch (auditErr) { console.warn('Audit logout failed:', auditErr) }
+      }
+
+      // 2. Close active session in DB (while still authenticated)
+      if (activeSessionRef.current) {
+        try {
+          await closeSession(activeSessionRef.current.id)
+        } catch (sessionErr) { console.warn('Close session failed:', sessionErr) }
+        setActiveSession(null)
+        activeSessionRef.current = null
+      }
+
+      // 3. Clear local state (immediate response)
+      setShops([])
+      setCurrentShop(null)
+      setUserProfile(null)
+      setClosureMap({})
+      hasInitialFetchStarted.current = false
+
+      // 4. Finally sign out (this triggers onAuthStateChange fallback too)
+      await supabase.auth.signOut()
+
+    } catch (error) {
+      console.error('[ShopContext] Error during logout:', error)
+    } finally {
+      // Always ensure loading is killed
+      setLoading(false)
+      setInitialLoading(false)
+    }
+  }
+
   return (
     <ShopContext.Provider value={{ 
       shops, 
@@ -392,6 +442,7 @@ export const ShopProvider = ({ children }) => {
       // ── Audit / Session ────────────────────────────────────
       activeSession,
       logAuditEvent,
+      logout,
     }}>
       {children}
     </ShopContext.Provider>
