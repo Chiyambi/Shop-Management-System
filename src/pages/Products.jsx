@@ -74,6 +74,32 @@ const Products = () => {
 
     setFormData(prev => ({ ...prev, barcode: cleanedCode }))
     setIsLookingUp(true)
+
+    // First, check if barcode already exists in current inventory
+    const existingProduct = products.find(p => p.barcode?.toLowerCase() === cleanedCode.toLowerCase())
+    
+    if (existingProduct) {
+      // Product exists in inventory - populate with existing details
+      setFormData(prev => ({
+        ...prev,
+        barcode: cleanedCode,
+        name: existingProduct.name,
+        brand: existingProduct.brand || '',
+        category: existingProduct.category,
+        unit_size: existingProduct.unit_size || '',
+        image_url: existingProduct.image_url || '',
+        quantity: '', // Empty so user enters quantity to add
+        min_quantity: existingProduct.min_quantity,
+        cost_price: existingProduct.cost_price,
+        selling_price: existingProduct.selling_price
+      }))
+      setIsEditing(true)
+      setEditId(existingProduct.id)
+      setIsLookingUp(false)
+      return
+    }
+
+    // If not found locally, try Open Food Facts API
     const details = await lookupBarcode(cleanedCode)
     if (details) {
       setFormData(prev => ({
@@ -126,8 +152,26 @@ const Products = () => {
       try {
         let error;
         if (isEditing) {
+          // Get original product to calculate quantity change
+          const originalProduct = products.find(p => p.id === editId)
+          const originalQuantity = originalProduct?.quantity || 0
+          const quantityAdded = finalData.quantity - originalQuantity
+
           const res = await supabase.from('products').update(finalData).eq('id', editId)
           error = res.error
+
+          // If stock was added via barcode lookup, create purchase record for tracking
+          if (!error && quantityAdded > 0) {
+            const { data: authData } = await supabase.auth.getUser()
+            await supabase.from('purchases').insert([{
+              shop_id: finalData.shop_id,
+              product_id: editId,
+              quantity: quantityAdded,
+              cost_price: finalData.cost_price,
+              selling_price: finalData.selling_price,
+              created_by: authData?.user?.id
+            }]).catch(err => console.warn('Purchases record creation failed:', err))
+          }
         } else {
           const res = await supabase.from('products').insert([finalData]).select()
           error = res.error
@@ -153,7 +197,18 @@ const Products = () => {
           resetForm()
           fetchProducts()
           refreshLowStock()
-          showSuccess(isEditing ? 'Product updated successfully!' : 'Product added successfully!')
+          
+          // More contextual success message
+          let successMsg = 'Product added successfully!'
+          if (isEditing) {
+            const originalProduct = products.find(p => p.id === editId)
+            if (originalProduct?.barcode === formData.barcode) {
+              successMsg = `Stock added successfully! (+${finalData.quantity - (originalProduct?.quantity || 0)} units)`
+            } else {
+              successMsg = 'Product updated successfully!'
+            }
+          }
+          showSuccess(successMsg)
           return
         } else {
           console.warn('Supabase save failed, falling back to offline queue...', error)
@@ -168,7 +223,16 @@ const Products = () => {
     const queueData = isEditing ? { ...finalData, id: editId } : finalData
     
     await enqueueInventoryAction(actionType, queueData)
-    alert(`ESCOM outage? Product saved locally! It will sync when online.`)
+    
+    // Contextual offline message
+    let offlineMsg = 'Product saved locally! It will sync when online.'
+    if (isEditing) {
+      const originalProduct = products.find(p => p.id === editId)
+      if (originalProduct?.barcode === formData.barcode) {
+        offlineMsg = 'Stock addition saved locally! It will sync when online.'
+      }
+    }
+    alert(`ESCOM outage? ${offlineMsg}`)
     
     setShowModal(false)
     resetForm()
@@ -515,9 +579,21 @@ const Products = () => {
           <div className="card" style={{ width: '100%', maxWidth: '600px', maxHeight: '95vh', overflowY: 'auto' }}>
             <form onSubmit={handleSaveProduct}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-                <h2 style={{ fontSize: '24px' }}>{isEditing ? 'Edit Product' : 'Add New Product'}</h2>
+                <h2 style={{ fontSize: '24px' }}>
+                  {isEditing && products.find(p => p.id === editId)?.barcode === formData.barcode 
+                    ? 'Add Stock to Product' 
+                    : isEditing 
+                    ? 'Edit Product' 
+                    : 'Add New Product'}
+                </h2>
                 <button type="button" onClick={() => setShowModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><X /></button>
               </div>
+
+              {isEditing && products.find(p => p.id === editId) && (
+                <div style={{ marginBottom: '20px', padding: '12px 14px', borderRadius: '10px', background: 'rgba(74, 222, 128, 0.1)', border: '1px solid rgba(74, 222, 128, 0.3)', color: '#1a7d1a', fontSize: '13px' }}>
+                  ✓ Product found in inventory! Scan quantity to add to existing stock.
+                </div>
+              )}
 
               <div style={{ marginBottom: '20px', border: '1px solid var(--border)', padding: '16px', borderRadius: '12px', background: 'var(--surface-elevated)' }}>
                 <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', marginBottom: '8px' }}>Global Scan & Lookup</label>
@@ -603,8 +679,20 @@ const Products = () => {
                 )}
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '13px', marginBottom: '6px' }}>{isEditing ? 'Current Stock' : 'Opening Stock'}</label>
-                  <input type="number" min="1" inputMode="numeric" value={formData.quantity} onChange={(e) => setFormData({...formData, quantity: sanitizePositiveIntegerInput(e.target.value)})} placeholder={isEditing ? 'Enter current stock quantity' : 'Enter opening stock quantity'} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border)' }} required />
+                  <label style={{ display: 'block', fontSize: '13px', marginBottom: '6px' }}>
+                    {isEditing && products.find(p => p.id === editId)?.barcode === formData.barcode 
+                      ? 'Quantity to Add' 
+                      : isEditing 
+                      ? 'Current Stock' 
+                      : 'Opening Stock'}
+                  </label>
+                  <input type="number" min="1" inputMode="numeric" value={formData.quantity} onChange={(e) => setFormData({...formData, quantity: sanitizePositiveIntegerInput(e.target.value)})} placeholder={
+                    isEditing && products.find(p => p.id === editId)?.barcode === formData.barcode 
+                      ? 'Enter qty to add to existing stock' 
+                      : isEditing 
+                      ? 'Enter current stock quantity' 
+                      : 'Enter opening stock quantity'
+                  } style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border)' }} required />
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '13px', marginBottom: '6px' }}>Low Stock Alert</label>
@@ -623,7 +711,13 @@ const Products = () => {
 
               <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '32px' }}>
                 <button type="button" className="btn" style={{ background: 'var(--surface-muted)', color: 'var(--text-main)' }} onClick={() => setShowModal(false)}>Cancel</button>
-                <button type="submit" className="btn btn-primary" style={{ padding: '0 32px' }}>Save Product</button>
+                <button type="submit" className="btn btn-primary" style={{ padding: '0 32px' }}>
+                  {isEditing && products.find(p => p.id === editId)?.barcode === formData.barcode 
+                    ? 'Add Stock' 
+                    : isEditing 
+                    ? 'Update Product' 
+                    : 'Save Product'}
+                </button>
               </div>
             </form>
           </div>

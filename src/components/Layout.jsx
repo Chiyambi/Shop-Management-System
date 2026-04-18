@@ -18,7 +18,8 @@ import {
   Menu,
   X,
   Settings,
-  CheckCircle
+  CheckCircle,
+  ClipboardList
 } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import ErrorBoundary from './ErrorBoundary'
@@ -128,15 +129,16 @@ const Layout = () => {
             ))}
             
             {userProfile?.role === 'Owner' && [
-              { to: '/purchases', icon: Truck, label: 'Purchases' },
-              { to: '/suppliers', icon: Building2, label: 'Suppliers' },
-              { to: '/reports', icon: BarChart3, label: 'Reports' },
-              { to: '/shops', icon: Building2, label: 'Shops' },
-              { to: '/staff', icon: Shield, label: 'Staff' },
-              { to: '/services', icon: Briefcase, label: 'Services' },
-              { to: '/credit', icon: PhoneCall, label: 'Customer Credit' },
-              { to: '/deliveries', icon: Truck, label: 'Deliveries' },
-              { to: '/settings', icon: Settings, label: 'Settings' },
+              { to: '/purchases',  icon: Truck,          label: 'Purchases' },
+              { to: '/suppliers',  icon: Building2,       label: 'Suppliers' },
+              { to: '/reports',    icon: BarChart3,       label: 'Reports' },
+              { to: '/shops',      icon: Building2,       label: 'Shops' },
+              { to: '/staff',      icon: Shield,          label: 'Staff' },
+              { to: '/services',   icon: Briefcase,       label: 'Services' },
+              { to: '/credit',     icon: PhoneCall,       label: 'Customer Credit' },
+              { to: '/deliveries', icon: Truck,           label: 'Deliveries' },
+              { to: '/audit',      icon: ClipboardList,   label: 'Audit Trail' },
+              { to: '/settings',   icon: Settings,        label: 'Settings' },
             ].map((link) => (
               <li key={link.to}>
                 <NavLink 

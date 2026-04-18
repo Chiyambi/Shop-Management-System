@@ -164,7 +164,7 @@ const ShopMessages = () => {
           color: 'white',
           border: 'none',
           cursor: 'pointer',
-          display: 'flex',
+          display: isOpen ? 'none' : 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           boxShadow: '0 4px 20px rgba(0,0,0,0.25)',

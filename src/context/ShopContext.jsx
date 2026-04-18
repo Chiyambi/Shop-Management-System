@@ -9,6 +9,7 @@ import { readStoredProfilePreferences } from '../lib/profilePreferences'
 import { syncManager } from '../lib/syncManager'
 import { processSyncQueue } from '../lib/offlineQueue'
 import { syncLowStockAlerts } from '../lib/lowStockAlerts'
+import { createSession, closeSession, getActiveSession, logAuditEvent as _logAuditEvent } from '../lib/auditSession'
 
 const ShopContext = createContext()
 
@@ -28,6 +29,9 @@ export const ShopProvider = ({ children }) => {
   const [themePreference, setThemePreference] = useState(() => readStoredThemePreference())
   const [countryResidence, setCountryResidence] = useState(DEFAULT_COUNTRY)
   const [currencyPreference, setCurrencyPreference] = useState(DEFAULT_CURRENCY)
+  // ── Audit / Session state ────────────────────────────────────
+  const [activeSession, setActiveSession] = useState(null)
+  const activeSessionRef = useRef(null) // always in sync for callback closures
 
   useEffect(() => {
     const timer = window.setInterval(() => setClock(new Date()), 60000)
@@ -141,18 +145,24 @@ export const ShopProvider = ({ children }) => {
       hasInitialFetchStarted.current = true
     }
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('Auth event:', event)
       if (session) {
         if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
           // Always fetch on explicit login to ensure profile is loaded
-          fetchUserData()
+          await fetchUserData()
         } else if (event === 'INITIAL_SESSION' && !hasInitialFetchStarted.current) {
           // Only fetch on boot if mount didn't already start it
-          fetchUserData()
+          await fetchUserData()
           hasInitialFetchStarted.current = true
         }
       } else if (event === 'SIGNED_OUT') {
+        // ── Close active session on logout ────────────────────
+        if (activeSessionRef.current) {
+          await closeSession(activeSessionRef.current.id)
+          setActiveSession(null)
+          activeSessionRef.current = null
+        }
         setShops([])
         setCurrentShop(null)
         setUserProfile(null)
@@ -248,6 +258,40 @@ export const ShopProvider = ({ children }) => {
     }
   }, [currentShop?.id, userProfile?.id, refreshClosures])
 
+  // ── Session: open/refresh when shop or user changes ──────────
+  useEffect(() => {
+    if (!userProfile?.id || !currentShop?.id || currentShop.id === 'all') return
+
+    let cancelled = false
+    const initSession = async () => {
+      // Check if there's already an active session (e.g. page refresh)
+      let session = await getActiveSession(userProfile.id, currentShop.id)
+
+      if (!session) {
+        // Create a new session (happens on first login or after logout)
+        session = await createSession(userProfile, currentShop.id)
+        if (session) {
+          // Log the LOGIN event
+          await _logAuditEvent({
+            shopId:      currentShop.id,
+            actionType:  'LOGIN',
+            profile:     userProfile,
+            sessionId:   session.id,
+            description: `${userProfile.full_name || 'Employee'} logged in`,
+          })
+        }
+      }
+
+      if (!cancelled && session) {
+        setActiveSession(session)
+        activeSessionRef.current = session
+      }
+    }
+
+    initSession()
+    return () => { cancelled = true }
+  }, [userProfile?.id, currentShop?.id])
+
   // Periodic background sync of offline sales if online
   useEffect(() => {
     const handleOnline = () => {
@@ -288,6 +332,23 @@ export const ShopProvider = ({ children }) => {
     await refreshClosures(shopId)
   }
 
+  /**
+   * Convenience wrapper so any page can log audit events without
+   * importing auditSession directly. Automatically injects shopId,
+   * profile, and sessionId from context.
+   */
+  const logAuditEvent = useCallback(async ({ actionType, description, metadata }) => {
+    if (!userProfile || !currentShop?.id || currentShop.id === 'all') return
+    await _logAuditEvent({
+      shopId:     currentShop.id,
+      actionType,
+      profile:    userProfile,
+      sessionId:  activeSessionRef.current?.id || null,
+      description,
+      metadata,
+    })
+  }, [userProfile, currentShop?.id])
+
   const today = format(new Date(), 'yyyy-MM-dd')
   const isCurrentDayClosed = currentShop?.id && currentShop.id !== 'all'
     ? isDateClosed(currentShop.id, today)
@@ -327,7 +388,10 @@ export const ShopProvider = ({ children }) => {
       initialLoading,
       isRefreshing,
       successMessage,
-      showSuccess
+      showSuccess,
+      // ── Audit / Session ────────────────────────────────────
+      activeSession,
+      logAuditEvent,
     }}>
       {children}
     </ShopContext.Provider>

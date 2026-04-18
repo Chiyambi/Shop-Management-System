@@ -17,6 +17,7 @@ import CustomerCredit from './pages/CustomerCredit'
 import Deliveries from './pages/Deliveries'
 import Expenses from './pages/Expenses'
 import Settings from './pages/Settings'
+import AuditDashboard from './pages/AuditDashboard'
 
 import { ShopProvider } from './context/ShopContext'
 import ProtectedRoute from './components/ProtectedRoute'
@@ -161,6 +162,7 @@ function App() {
             <Route path="deliveries" element={<Deliveries />} />
             <Route path="expenses" element={<Expenses />} />
             <Route path="settings" element={<Settings />} />
+            <Route path="audit" element={<AuditDashboard />} />
           </Route>
         </Routes>
       </Router>

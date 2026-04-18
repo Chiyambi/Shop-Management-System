@@ -1,63 +1,63 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap');
 
 :root {
-  --primary: #d4af37; /* Rich Gold */
-  --primary-hover: #b8860b;
+  --primary: #e6b80d; /* Bolder Gold */
+  --primary-hover: #cc9900;
   --secondary: #000000; /* Black */
-  --success: #228b22;
-  --danger: #dc3545;
-  --warning: #ffc107;
-  --info: #0dcaf0;
-  --bg-main: #f8f9fa;
+  --success: #1a7d1a;
+  --danger: #c41c3b;
+  --warning: #ff9800;
+  --info: #0099cc;
+  --bg-main: #f5f6f7;
   --bg-sidebar: #ffffff;
-  --text-main: #121212;
-  --text-muted: #6c757d;
-  --border: #e9ecef;
-  --shadow: 0 4px 12px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.03);
+  --text-main: #0a0a0a;
+  --text-muted: #4a5568;
+  --border: #d0d5dd;
+  --shadow: 0 4px 12px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.05);
   --surface-elevated: #ffffff;
-  --surface-muted: #f1f3f5;
-  --surface-subtle: #e9ecef;
-  --surface-overlay: rgba(255, 255, 255, 0.9);
-  --surface-warning-soft: #fff8e5;
-  --surface-success-soft: #e8f7ed;
-  --surface-danger-soft: #fff5f5;
-  --surface-danger-muted: #f8d7da;
-  --border-warning-soft: #fdeb97;
-  --border-success-soft: #86d19d;
-  --border-danger-soft: #ffebeb;
-  --text-warning-strong: #856404;
-  --text-info-strong: #0a9e5d;
+  --surface-muted: #ececf1;
+  --surface-subtle: #d0d5dd;
+  --surface-overlay: rgba(255, 255, 255, 0.95);
+  --surface-warning-soft: #fff4e6;
+  --surface-success-soft: #e6f5e6;
+  --surface-danger-soft: #ffe6e6;
+  --surface-danger-muted: #ffcccc;
+  --border-warning-soft: #ffcc66;
+  --border-success-soft: #66c266;
+  --border-danger-soft: #ff9999;
+  --text-warning-strong: #663300;
+  --text-info-strong: #006680;
   --radius: 12px;
   --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 :root[data-theme='dark'] {
-  --primary: #ebd373; /* Vibrant warm gold for dark mode */
-  --primary-hover: #d4af37;
+  --primary: #f0c842; /* Bolder vibrant gold for dark mode */
+  --primary-hover: #e6b80d;
   --secondary: #ffffff; /* White */
-  --success: #4ade80;
-  --danger: #ff6b6b;
-  --warning: #fbbf24;
-  --info: #38bdf8;
-  --bg-main: #0b0f14; /* Deep professional black */
-  --bg-sidebar: #131821; /* Slightly elevated dark */
-  --text-main: #fbfbfc;
-  --text-muted: #94a3b8;
-  --border: #262e3d;
-  --shadow: 0 8px 30px rgba(0, 0, 0, 0.6);
-  --surface-elevated: #131821;
-  --surface-muted: #1e2532;
-  --surface-subtle: #2b3544;
-  --surface-overlay: rgba(11, 15, 20, 0.9);
-  --surface-warning-soft: rgba(251, 191, 36, 0.1);
-  --surface-success-soft: rgba(74, 222, 128, 0.1);
-  --surface-danger-soft: rgba(255, 107, 107, 0.1);
-  --surface-danger-muted: rgba(255, 107, 107, 0.2);
-  --border-warning-soft: rgba(251, 191, 36, 0.3);
-  --border-success-soft: rgba(74, 222, 128, 0.3);
-  --border-danger-soft: rgba(255, 107, 107, 0.3);
-  --text-warning-strong: #fbbf24;
-  --text-info-strong: #7dd3fc;
+  --success: #5dd966;
+  --danger: #ff5555;
+  --warning: #ffb347;
+  --info: #4db3ff;
+  --bg-main: #0a0d12; /* Deeper professional black */
+  --bg-sidebar: #12161e; /* More elevated dark */
+  --text-main: #f5f5f7;
+  --text-muted: #b0b8c8;
+  --border: #2d3748;
+  --shadow: 0 8px 30px rgba(0, 0, 0, 0.8);
+  --surface-elevated: #12161e;
+  --surface-muted: #1a1f2a;
+  --surface-subtle: #252d3a;
+  --surface-overlay: rgba(10, 13, 18, 0.95);
+  --surface-warning-soft: rgba(255, 179, 71, 0.15);
+  --surface-success-soft: rgba(93, 217, 102, 0.15);
+  --surface-danger-soft: rgba(255, 85, 85, 0.15);
+  --surface-danger-muted: rgba(255, 85, 85, 0.25);
+  --border-warning-soft: rgba(255, 179, 71, 0.4);
+  --border-success-soft: rgba(93, 217, 102, 0.4);
+  --border-danger-soft: rgba(255, 85, 85, 0.4);
+  --text-warning-strong: #ffb347;
+  --text-info-strong: #4db3ff;
 }
 
 * {
@@ -447,14 +447,14 @@ select option {
     max-width: 100vw !important;
     height: calc(100vh - 100px) !important;
     max-height: calc(100vh - 100px) !important;
-    z-index: 3000 !important;
+    z-index: 5000 !important;
   }
   
   .chat-toggle-btn {
     bottom: 80px !important;
     right: 16px !important;
     transform: scale(0.9) !important;
-    z-index: 2900 !important;
+    z-index: 4900 !important;
   }
 }
 

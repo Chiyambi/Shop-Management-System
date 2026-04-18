@@ -1,9 +1,18 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Mail, Lock, LogIn, UserCircle, Store } from 'lucide-react'
+import { Mail, Lock, LogIn, UserCircle, Store, Eye, EyeOff, ShieldCheck, AlertTriangle, Timer } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { getFriendlyErrorMessage } from '../lib/errorMessages'
 import managerLogo from '../assets/manager.png'
+import { validatePassword, getStrengthMeta, assertPasswordPolicy, PASSWORD_RULES } from '../lib/passwordPolicy'
+import { sanitizeEmail, sanitizeName } from '../lib/sanitize'
+import {
+  checkRateLimit,
+  recordFailedAttempt,
+  recordSuccessfulLogin,
+  formatCountdown,
+  buildLockoutMessage,
+} from '../lib/loginRateLimit'
 
 const buildDisplayName = (user, fallbackFullName = '') => {
   const trimmedFallback = fallbackFullName.trim()
@@ -40,6 +49,52 @@ const Login = () => {
   // Staff Specific
   const [staffName, setStaffName] = useState('')
   const [branchName, setBranchName] = useState('')
+
+  // Password visibility toggles
+  const [showPassword,        setShowPassword]        = useState(false)
+  const [showNewPassword,     setShowNewPassword]     = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+
+  // ── Live password strength (for signup + reset forms) ──────────
+  const signupStrength = useMemo(() => validatePassword(password),    [password])
+  const resetStrength  = useMemo(() => validatePassword(newPassword), [newPassword])
+
+  // ── Rate-limit / lockout state ─────────────────────────────
+  const [isLockedOut,     setIsLockedOut]     = useState(false)
+  const [lockoutMs,       setLockoutMs]       = useState(0)   // ms remaining
+  const [failedAttempts,  setFailedAttempts]  = useState(0)   // visual count
+  const [delayActive,     setDelayActive]     = useState(false) // progressive delay in progress
+  const countdownRef = useRef(null)
+
+  /** Re-check lockout state whenever the identifier fields change. */
+  const getIdentifier = useCallback(() => {
+    if (isStaffLogin) {
+      return `${staffName.toLowerCase().replace(/\s/g, '')}.${branchName.toLowerCase().replace(/\s/g, '')}@sms.com`
+    }
+    return (email || '').toLowerCase().trim()
+  }, [isStaffLogin, staffName, branchName, email])
+
+  /** Start a live countdown timer when locked out. */
+  const startCountdown = useCallback((msRemaining) => {
+    setIsLockedOut(true)
+    setLockoutMs(msRemaining)
+    if (countdownRef.current) clearInterval(countdownRef.current)
+    countdownRef.current = setInterval(() => {
+      setLockoutMs((prev) => {
+        const next = prev - 1000
+        if (next <= 0) {
+          clearInterval(countdownRef.current)
+          setIsLockedOut(false)
+          setFailedAttempts(0)
+          setError(null)
+          return 0
+        }
+        return next
+      })
+    }, 1000)
+  }, [])
+
+  useEffect(() => () => { if (countdownRef.current) clearInterval(countdownRef.current) }, [])
 
   useEffect(() => {
     const url = new URL(window.location.href)
@@ -123,17 +178,41 @@ const Login = () => {
   const handleAuth = async (e) => {
     e.preventDefault()
     setLoading(true)
+    setError(null)
     const nameRegex = /^[a-zA-Z\s]+$/
     
+    // ── Input Sanitization ──────────────────────────────────────
+    const cleanEmail     = sanitizeEmail(email)
+    const cleanFullName  = sanitizeName(fullName)
+    const cleanStaffName = sanitizeName(staffName)
+    const cleanBranch    = sanitizeName(branchName)
+    const cleanShopName  = sanitizeName(shopName)
+
+    const identifier = isStaffLogin 
+      ? `${cleanStaffName.toLowerCase().replace(/\s/g, '')}.${cleanBranch.toLowerCase().replace(/\s/g, '')}@sms.com`
+      : cleanEmail.toLowerCase().trim()
+
+    // ── 1. PRE-CHECK: is this identifier currently locked out? ──
+    const rlCheck = checkRateLimit(identifier)
+    if (!rlCheck.allowed) {
+      startCountdown(rlCheck.msRemaining)
+      setError(buildLockoutMessage(rlCheck.msRemaining))
+      setLoading(false)
+      return
+    }
+
     try {
       if (isStaffLogin) {
         if (!nameRegex.test(staffName)) {
           throw new Error('Staff name should only contain letters and spaces.')
         }
         // Staff Login: map to pseudo-email
-        const staffEmail = `${staffName.toLowerCase().replace(/\s/g, '')}.${branchName.toLowerCase().replace(/\s/g, '')}@sms.com`
+        const staffEmail = identifier
         const { data: { user }, error } = await supabase.auth.signInWithPassword({ email: staffEmail, password })
         if (error) throw error
+        // ── Success: clear rate-limit counter ──
+        recordSuccessfulLogin(identifier)
+        setFailedAttempts(0)
         
         // Fetch profile to determine redirect
         const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
@@ -146,11 +225,13 @@ const Login = () => {
         if (!nameRegex.test(fullName)) {
           throw new Error('Full name should only contain letters and spaces.')
         }
+        // ── Enforce strong password policy before calling Supabase ──
+        assertPasswordPolicy(password)
         // Owner Sign Up
         const { data: authData, error: authError } = await supabase.auth.signUp({ 
-          email, 
+          email: cleanEmail, 
           password,
-          options: { data: { full_name: fullName } }
+          options: { data: { full_name: cleanFullName } }
         })
         if (authError) {
           const duplicateAccount =
@@ -159,13 +240,13 @@ const Login = () => {
 
           if (!duplicateAccount) throw authError
 
-          const { data: existingAuthData, error: existingSignInError } = await supabase.auth.signInWithPassword({ email, password })
+          const { data: existingAuthData, error: existingSignInError } = await supabase.auth.signInWithPassword({ email: cleanEmail, password })
           if (existingSignInError) {
             throw new Error('This email is already registered. Sign in with your password or use Forgot Password to reset it.')
           }
 
-          const repairedProfile = await ensureOwnerProfile(existingAuthData.user, fullName)
-          await ensureOwnerShop(existingAuthData.user.id, shopName)
+          const repairedProfile = await ensureOwnerProfile(existingAuthData.user, cleanFullName)
+          await ensureOwnerShop(existingAuthData.user.id, cleanShopName)
           if (repairedProfile.role === 'Owner') {
             navigate('/dashboard')
           } else {
@@ -174,7 +255,6 @@ const Login = () => {
           return
         }
 
-        const ownerProfile = await ensureOwnerProfile(authData.user, fullName)
         await ensureOwnerShop(authData.user.id, shopName)
 
         if (authData.session) {
@@ -189,9 +269,11 @@ const Login = () => {
         }
       } else {
         // Owner Login
-        const { data: { user }, error } = await supabase.auth.signInWithPassword({ email, password })
+        const { data: { user }, error } = await supabase.auth.signInWithPassword({ email: cleanEmail, password })
         if (error) throw error
-        
+        // ── Success: clear rate-limit counter ──
+        recordSuccessfulLogin(identifier)
+        setFailedAttempts(0)
         const profile = await ensureOwnerProfile(user)
         if (profile?.role === 'Owner') {
           navigate('/dashboard')
@@ -200,6 +282,16 @@ const Login = () => {
         }
       }
     } catch (err) {
+      // ── Record failure + apply progressive delay ──
+      if (!isSignUp) {
+        setDelayActive(true)
+        const result = await recordFailedAttempt(identifier)
+        setDelayActive(false)
+        setFailedAttempts(result.attempt)
+        if (result.isLockedOut) {
+          startCountdown(10 * 60 * 1000) // 10-minute lockout
+        }
+      }
       setError(getFriendlyErrorMessage(err))
     } finally {
       setLoading(false)
@@ -229,9 +321,8 @@ const Login = () => {
     setError(null)
 
     try {
-      if (newPassword.length < 6) {
-        throw new Error('New password must be at least 6 characters long.')
-      }
+      // ── Enforce strong password policy before calling Supabase ──
+      assertPasswordPolicy(newPassword)
       if (newPassword !== confirmPassword) {
         throw new Error('Passwords do not match.')
       }
@@ -248,6 +339,8 @@ const Login = () => {
       setResetSent(false)
       setEmail('')
       setPassword('')
+      setShowNewPassword(false)
+      setShowConfirmPassword(false)
       const url = new URL(window.location.href)
       url.searchParams.delete('mode')
       window.history.replaceState({}, '', url.pathname)
@@ -257,6 +350,48 @@ const Login = () => {
     } finally {
       setLoading(false)
     }
+  }
+
+  // ── Reusable password strength UI ──────────────────────────────
+  const PasswordStrengthMeter = ({ value }) => {
+    if (!value) return null
+    const { score, results } = validatePassword(value)
+    const meta = getStrengthMeta(score)
+    const pct  = (score / PASSWORD_RULES.length) * 100
+    return (
+      <div style={{ marginTop: '10px' }}>
+        {/* Animated strength bar */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+          <div style={{ flex: 1, height: '6px', borderRadius: '3px', background: 'var(--surface-muted)', overflow: 'hidden' }}>
+            <div style={{
+              height: '100%', width: `${pct}%`, background: meta.color,
+              borderRadius: '3px', transition: 'width 0.35s ease, background 0.35s ease',
+            }} />
+          </div>
+          {meta.label && (
+            <span style={{ fontSize: '11px', fontWeight: '700', color: meta.color, minWidth: '70px', textAlign: 'right' }}>
+              {meta.label}
+            </span>
+          )}
+        </div>
+        {/* Rule checklist */}
+        <div style={{
+          padding: '10px 12px', borderRadius: '10px', background: 'var(--surface-muted)',
+          display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 8px',
+        }}>
+          {results.map((r) => (
+            <span key={r.id} style={{
+              fontSize: '11px', fontWeight: '500',
+              color: r.passed ? 'var(--success)' : 'var(--text-muted)',
+              display: 'flex', alignItems: 'center', gap: '5px',
+            }}>
+              <span style={{ fontSize: '13px' }}>{r.passed ? '✅' : '○'}</span>
+              {r.label}
+            </span>
+          ))}
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -303,8 +438,69 @@ const Login = () => {
         {/* Google Sign-In Button */}
 
 
-        {error && (
-          <div style={{ padding: '12px', background: 'rgba(220, 53, 69, 0.1)', color: 'var(--danger)', borderRadius: '8px', marginBottom: '20px', fontSize: '14px', textAlign: 'center' }}>
+        {/* ── LOCKOUT BANNER ─────────────────────────────────── */}
+        {isLockedOut && (
+          <div style={{
+            padding: '16px', borderRadius: '12px', marginBottom: '16px',
+            background: 'rgba(196,28,59,0.08)', border: '1px solid rgba(196,28,59,0.25)',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--danger)' }}>
+              <AlertTriangle size={20} />
+              <span style={{ fontWeight: '700', fontSize: '15px' }}>Account Temporarily Locked</span>
+            </div>
+            <p style={{ fontSize: '13px', color: 'var(--text-muted)', textAlign: 'center', margin: 0 }}>
+              Too many failed attempts. Please wait before trying again.
+            </p>
+            {/* Live countdown ring */}
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: '8px',
+              padding: '8px 20px', borderRadius: '30px',
+              background: 'rgba(196,28,59,0.12)', color: 'var(--danger)',
+            }}>
+              <Timer size={16} />
+              <span style={{ fontWeight: '800', fontSize: '18px', fontVariantNumeric: 'tabular-nums', minWidth: '64px', textAlign: 'center' }}>
+                {formatCountdown(lockoutMs)}
+              </span>
+            </div>
+            <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: 0 }}>
+              Lockout resets automatically when the timer reaches zero.
+            </p>
+          </div>
+        )}
+
+        {/* ── PROGRESSIVE DELAY INDICATOR ─────────────────────── */}
+        {delayActive && (
+          <div style={{
+            padding: '10px 14px', borderRadius: '10px', marginBottom: '12px',
+            background: 'rgba(245,158,11,0.09)', border: '1px solid rgba(245,158,11,0.25)',
+            display: 'flex', alignItems: 'center', gap: '8px',
+            color: '#b45309', fontSize: '13px', fontWeight: '600',
+          }}>
+            <Timer size={15} />
+            Verifying credentials… please wait.
+          </div>
+        )}
+
+        {/* ── FAILED-ATTEMPT WARNING STRIP ────────────────────── */}
+        {!isLockedOut && failedAttempts > 0 && failedAttempts < 5 && (
+          <div style={{
+            padding: '10px 14px', borderRadius: '10px', marginBottom: '12px',
+            background: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.2)',
+            display: 'flex', alignItems: 'center', gap: '8px',
+            fontSize: '13px', color: '#92400e',
+          }}>
+            <AlertTriangle size={14} style={{ flexShrink: 0 }} />
+            <span>
+              <strong>{failedAttempts}</strong> of 5 failed attempt{failedAttempts > 1 ? 's' : ''}.{' '}
+              {5 - failedAttempts} attempt{5 - failedAttempts !== 1 ? 's' : ''} remaining before lockout.
+            </span>
+          </div>
+        )}
+
+        {/* ── GENERIC ERROR ────────────────────────────────────── */}
+        {error && !isLockedOut && (
+          <div style={{ padding: '12px', background: 'rgba(220, 53, 69, 0.08)', color: 'var(--danger)', borderRadius: '8px', marginBottom: '16px', fontSize: '14px', textAlign: 'center', border: '1px solid rgba(220,53,69,0.18)' }}>
             {error}
             {error.includes('rate limit') && (
               <div style={{ marginTop: '8px', fontSize: '12px', color: 'var(--text-main)', opacity: 0.8 }}>
@@ -316,19 +512,24 @@ const Login = () => {
 
         {isResetPasswordMode ? (
           <form onSubmit={handleUpdatePassword}>
-            <div style={{ marginBottom: '20px' }}>
+            <div style={{ marginBottom: '16px' }}>
               <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '8px' }}>New Password</label>
               <div style={{ position: 'relative' }}>
                 <Lock style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} size={18} />
                 <input
-                  type="password"
+                  type={showNewPassword ? 'text' : 'password'}
                   placeholder="Enter new password"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
-                  style={{ width: '100%', padding: '12px 12px 12px 40px', borderRadius: '8px', border: '1px solid var(--border)', outline: 'none' }}
+                  style={{ width: '100%', padding: '12px 44px 12px 40px', borderRadius: '8px', border: '1px solid var(--border)', outline: 'none' }}
                   required
                 />
+                <button type="button" onClick={() => setShowNewPassword(v => !v)}
+                  style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 0 }}>
+                  {showNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
               </div>
+              <PasswordStrengthMeter value={newPassword} />
             </div>
 
             <div style={{ marginBottom: '24px' }}>
@@ -336,18 +537,29 @@ const Login = () => {
               <div style={{ position: 'relative' }}>
                 <Lock style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} size={18} />
                 <input
-                  type="password"
+                  type={showConfirmPassword ? 'text' : 'password'}
                   placeholder="Confirm new password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  style={{ width: '100%', padding: '12px 12px 12px 40px', borderRadius: '8px', border: '1px solid var(--border)', outline: 'none' }}
+                  style={{ width: '100%', padding: '12px 44px 12px 40px', borderRadius: '8px', border: '1px solid var(--border)', outline: 'none' }}
                   required
                 />
+                <button type="button" onClick={() => setShowConfirmPassword(v => !v)}
+                  style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 0 }}>
+                  {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
               </div>
+              {/* Match indicator */}
+              {confirmPassword && (
+                <p style={{ fontSize: '12px', marginTop: '6px', color: newPassword === confirmPassword ? 'var(--success)' : 'var(--danger)', fontWeight: '600' }}>
+                  {newPassword === confirmPassword ? '✅ Passwords match' : '✗ Passwords do not match'}
+                </p>
+              )}
             </div>
 
-            <button type="submit" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '14px' }} disabled={loading}>
-              {loading ? 'Updating...' : 'Save New Password'}
+            <button type="submit" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '14px' }}
+              disabled={loading || !resetStrength.passed || newPassword !== confirmPassword}>
+              {loading ? 'Updating...' : <><ShieldCheck size={18} /><span>Save New Password</span></>}
             </button>
           </form>
         ) : resetSent ? (
@@ -476,19 +688,25 @@ const Login = () => {
               </>
             )}
 
-            <div style={{ marginBottom: '20px' }}>
+            <div style={{ marginBottom: isSignUp ? '8px': '20px' }}>
               <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '8px' }}>Password</label>
               <div style={{ position: 'relative' }}>
                 <Lock style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} size={18} />
                 <input 
-                  type="password" 
+                  type={showPassword ? 'text' : 'password'}
                   placeholder="••••••••" 
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  style={{ width: '100%', padding: '12px 12px 12px 40px', borderRadius: '8px', border: '1px solid var(--border)', outline: 'none' }}
+                  style={{ width: '100%', padding: '12px 44px 12px 40px', borderRadius: '8px', border: '1px solid var(--border)', outline: 'none' }}
                   required 
                 />
+                <button type="button" onClick={() => setShowPassword(v => !v)}
+                  style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 0 }}>
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
               </div>
+              {/* Show meter only on Sign Up */}
+              {isSignUp && <PasswordStrengthMeter value={password} />}
             </div>
 
             {!isSignUp && !isStaffLogin && (
@@ -502,8 +720,18 @@ const Login = () => {
                 </button>
               </div>
             )}
-            <button type="submit" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '14px' }} disabled={loading}>
-              {loading ? 'Processing...' : (
+            <button type="submit" className="btn btn-primary" 
+              style={{
+                width: '100%', justifyContent: 'center', padding: '14px', marginTop: isSignUp ? '8px' : '0',
+                opacity: (isLockedOut || delayActive) ? 0.6 : 1,
+                cursor: (isLockedOut || delayActive) ? 'not-allowed' : 'pointer',
+              }} 
+              disabled={loading || delayActive || isLockedOut || (isSignUp && !signupStrength.passed)}>
+              {isLockedOut ? (
+                <><Timer size={18} /><span>Locked — {formatCountdown(lockoutMs)}</span></>
+              ) : delayActive ? (
+                <><Timer size={18} /><span>Please wait…</span></>
+              ) : loading ? 'Processing...' : (
                 <>
                   <LogIn size={20} />
                   <span>{isSignUp ? 'Create Account' : 'Sign In'}</span>

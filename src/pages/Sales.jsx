@@ -8,7 +8,7 @@ import BarcodeScanner from '../components/BarcodeScanner'
 import { downloadReceiptPdf } from '../lib/receiptPrinter'
 
 const Sales = () => {
-  const { currentShop, canModifyCurrentShop, shopAccessMessage, formatCurrency, currencyPreference, refreshData, showSuccess, userProfile } = useShop()
+  const { currentShop, canModifyCurrentShop, shopAccessMessage, formatCurrency, currencyPreference, refreshData, showSuccess, userProfile, activeSession, logAuditEvent } = useShop()
   const [products, setProducts] = useState([])
   const [services, setServices] = useState([])
   const [loading, setLoading] = useState(true)
@@ -203,7 +203,16 @@ const Sales = () => {
     
     try {
       const salePayload = {
-        sale: { shop_id: currentShop.id, customer_id: selectedCustomerId, total_amount: totalAmount, payment_method: paymentMethod },
+        sale: { 
+          shop_id:       currentShop.id, 
+          customer_id:   selectedCustomerId, 
+          total_amount:  totalAmount, 
+          payment_method: paymentMethod,
+          // ── Accountability fields ──────────────────────────
+          session_id:    activeSession?.id    || null,
+          employee_name: userProfile?.full_name || null,
+          created_by:    userProfile?.id        || null
+        },
         items: cart.map(item => ({
           product_id: item.isService ? null : item.id,
           service_id: item.isService ? item.id : null,
@@ -253,6 +262,20 @@ const Sales = () => {
             }
           }
           
+          // Log audit event for this sale (fire-and-forget)
+          const itemSummary = cart.map(i => `${i.cartQuantity}x ${i.name}`).join(', ')
+          logAuditEvent({
+            actionType:  'SALE',
+            description: `Sold: ${itemSummary} — Total: ${formatCurrency(totalAmount)}`,
+            metadata: {
+              sale_id:        sale.id,
+              total_amount:   totalAmount,
+              payment_method: paymentMethod,
+              items_count:    cart.length,
+              customer_name:  customerName,
+            }
+          })
+
           downloadReceiptPdf({
             sale,
             items: receiptItems,
